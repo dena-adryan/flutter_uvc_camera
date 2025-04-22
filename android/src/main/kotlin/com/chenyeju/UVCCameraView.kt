@@ -557,7 +557,7 @@ internal class UVCCameraView(
         }
         captureImage( object : ICaptureCallBack {
             override fun onBegin() {
-                callFlutter("开始拍照")
+                // callFlutter("开始拍照")
             }
 
             override fun onComplete(path: String?) {
