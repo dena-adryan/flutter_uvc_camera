@@ -526,6 +526,43 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?
     }
 
     /**
+     * Set Flashlight (via Backlight Compensation mapping)
+     * Unit 2, Selector 1, 2-byte payload
+     * @param isOn true to turn on, false to turn off
+     */
+    fun setFlashlight(isOn: Boolean) {
+        // Kita ambil connection dari mCtrlBlock milik library
+        val conn = mCtrlBlock?.connection ?: return
+        val device = mCtrlBlock?.device ?: return
+
+        mCameraHandler?.post {
+            try {
+                // Sesuai eksperimen Anda: Gunakan Interface 1
+                // Kita lakukan claim singkat untuk memastikan kernel mengizinkan transfer
+                val intf = device.getInterface(1)
+                conn.claimInterface(intf, true)
+
+                val data = if (isOn) byteArrayOf(0x01, 0x00) else byteArrayOf(0x00, 0x00)
+
+                // wValue: (Selector 1 << 8) -> 0x0100
+                // wIndex: (UnitID 2 << 8) -> 0x0200 (atau 0x0201 jika interface 1)
+                // Berdasarkan eksperimen Anda yang berhasil:
+                val wValue = (0x01 shl 8)
+                val wIndex = (0x02 shl 8)
+
+                val ret = conn.controlTransfer(0x21, 0x01, wValue, wIndex, data, 2, 200)
+
+                Logger.d(TAG, "Sonix Flashlight set to $isOn, Result: $ret")
+
+                // Segera lepaskan agar tidak mengganggu stream video
+                conn.releaseInterface(intf)
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to toggle Sonix Flashlight", e)
+            }
+        }
+    }
+
+    /**
      * Get hue
      */
     fun getHue() = mUvcCamera?.hue

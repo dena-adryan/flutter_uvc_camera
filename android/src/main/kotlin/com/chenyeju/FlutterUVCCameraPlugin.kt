@@ -130,6 +130,12 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
                 result.success("Android " + Build.VERSION.RELEASE)
             }
 
+            "setFlashlight" -> {
+                val isOn = call.argument<Boolean>("isOn") ?: false
+                mUVCCameraViewFactory.setFlashlight(isOn)
+                result.success(true)
+            }
+
             else -> {
                 result.notImplemented()
             }

@@ -12,6 +12,7 @@ import android.hardware.usb.UsbDevice
 import android.media.MediaScannerConnection
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.SurfaceView
@@ -620,4 +621,13 @@ internal class UVCCameraView(
 
     }
 
+
+    fun setFlashlight(isOn: Boolean) {
+        val camera = getCurrentCamera()
+        if (camera is CameraUVC) {
+            camera.setFlashlight(isOn)
+        } else {
+            Log.e("CameraView", "Current camera is not CameraUVC")
+        }
+    }
 }

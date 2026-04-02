@@ -51,5 +51,10 @@ class UVCCameraViewFactory(private val plugin: FlutterUVCCameraPlugin,private va
         cameraView.updateResolution(arguments)
     }
 
+    // Buka file UVCCameraViewFactory.kt, tambahkan di dalam class UVCCameraViewFactory
+    fun setFlashlight(isOn: Boolean) {
+        cameraView.setFlashlight(isOn)
+    }
+
 
 }
