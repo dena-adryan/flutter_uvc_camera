@@ -91,6 +91,19 @@ class UVCCameraController {
     await _cameraChannel?.invokeMethod('startCamera');
   }
 
+  /// Menyalakan atau mematikan Flashlight (Custom Sonix)
+  Future<bool> setFlashlight(bool isOn) async {
+    try {
+      // Pastikan nama channel dan method sama persis dengan yang di Kotlin
+      final bool? result =
+          await _cameraChannel?.invokeMethod('setFlashlight', {'isOn': isOn});
+      return result ?? false;
+    } catch (e) {
+      print("Error setFlashlight: $e");
+      return false;
+    }
+  }
+
   /// 获取全部预览大小
   Future getAllPreviewSizes() async {
     var result = await _cameraChannel?.invokeMethod('getAllPreviewSizes');
