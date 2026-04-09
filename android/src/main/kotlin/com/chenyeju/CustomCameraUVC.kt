@@ -49,6 +49,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         MultiCameraClient.ICamera(ctx, device) {
     private var mUvcCamera: UVCCamera? = null
     private var mFlashInterface: android.hardware.usb.UsbInterface? = null
+    private var mIsFlashOn: Boolean = false
     private val mCameraPreviewSize by lazy { arrayListOf<PreviewSize>() }
     companion object {
         private const val TAG = "CameraUVC"
@@ -258,6 +259,18 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
     }
 
     override fun closeCameraInternal() {
+
+        if (mIsFlashOn) {
+            Logger.d(TAG, "Flash is still ON. Forcing OFF before close...")
+            try {
+                val dataOff = byteArrayOf(0x00, 0x00)
+                mCtrlBlock?.connection?.controlTransfer(0x21, 0x01, 0x0100, 0x0200, dataOff, 2, 200)
+                mIsFlashOn = false // Reset penanda
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to turn off flash before closing", e)
+            }
+        }
+
         try {
             mFlashInterface?.let { intf ->
                 mCtrlBlock?.connection?.releaseInterface(intf)
@@ -538,6 +551,10 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
 
                 // Kirim perintah
                 val ret = conn.controlTransfer(0x21, 0x01, wValue, wIndex, data, 2, 200)
+
+                if (ret >= 0) {
+                    mIsFlashOn = isOn
+                }
 
                 Logger.d(TAG, "Sonix Flashlight set to $isOn, Result: $ret")
 
