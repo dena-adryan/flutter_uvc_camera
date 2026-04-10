@@ -17,31 +17,40 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var activity: Activity? = null
     private var permissionResultListener: PermissionResultListener? = null
     private var mActivityPluginBinding: ActivityPluginBinding? = null
-    private var requestPermissionsResultListener: io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener? =
-        null
+    private var requestPermissionsResultListener:
+            io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener? =
+            null
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         channel = MethodChannel(flutterPluginBinding.binaryMessenger, channelName)
         channel!!.setMethodCallHandler(this)
         mUVCCameraViewFactory = UVCCameraViewFactory(this, channel!!)
-        flutterPluginBinding.platformViewRegistry.registerViewFactory(viewName, mUVCCameraViewFactory)
+        flutterPluginBinding.platformViewRegistry.registerViewFactory(
+                viewName,
+                mUVCCameraViewFactory
+        )
     }
-
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel?.setMethodCallHandler(null)
         channel = null
     }
 
-
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         mActivityPluginBinding = binding
         requestPermissionsResultListener =
-            io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener { requestCode, permissions, grantResults ->
-                permissionResultListener?.onPermissionResult(requestCode, permissions, grantResults)
-                true
-            }
+                io.flutter.plugin.common.PluginRegistry.RequestPermissionsResultListener {
+                        requestCode,
+                        permissions,
+                        grantResults ->
+                    permissionResultListener?.onPermissionResult(
+                            requestCode,
+                            permissions,
+                            grantResults
+                    )
+                    true
+                }
         binding.addRequestPermissionsResultListener(requestPermissionsResultListener!!)
     }
 
@@ -49,57 +58,51 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         this.permissionResultListener = listener
     }
 
-    override fun onDetachedFromActivityForConfigChanges() {
+    override fun onDetachedFromActivityForConfigChanges() {}
 
-    }
-
-    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {
-
-    }
+    override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) {}
 
     override fun onDetachedFromActivity() {
         activity = null
         if (requestPermissionsResultListener != null) {
-            mActivityPluginBinding?.removeRequestPermissionsResultListener(requestPermissionsResultListener!!)
+            mActivityPluginBinding?.removeRequestPermissionsResultListener(
+                    requestPermissionsResultListener!!
+            )
             requestPermissionsResultListener = null
             mActivityPluginBinding = null
         }
     }
-
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "initializeCamera" -> {
                 mUVCCameraViewFactory.initCamera()
             }
-
             "openUVCCamera" -> {
                 mUVCCameraViewFactory.openUVCCamera()
             }
-
             "takePicture" -> {
                 mUVCCameraViewFactory.takePicture(
-                    object : UVCStringCallback {
-                        override fun onSuccess(path: String) {
-                            result.success(path)
+                        object : UVCStringCallback {
+                            override fun onSuccess(path: String) {
+                                result.success(path)
+                            }
+                            override fun onError(error: String) {
+                                result.error("error", error, error)
+                            }
                         }
-                        override fun onError(error: String) {
-                            result.error("error", error, error)
-                        }
-                    }
                 )
             }
-
             "captureVideo" -> {
                 mUVCCameraViewFactory.captureVideo(
-                    object : UVCStringCallback {
-                        override fun onSuccess(path: String) {
-                            result.success(path)
+                        object : UVCStringCallback {
+                            override fun onSuccess(path: String) {
+                                result.success(path)
+                            }
+                            override fun onError(error: String) {
+                                result.error("error", error, error)
+                            }
                         }
-                        override fun onError(error: String) {
-                            result.error("error", error, error)
-                        }
-                    }
                 )
             }
             "captureStreamStart" -> {
@@ -108,38 +111,55 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             "captureStreamStop" -> {
                 mUVCCameraViewFactory.captureStreamStop()
             }
-
             "closeCamera" -> {
                 mUVCCameraViewFactory.closeCamera()
             }
-
-
             "getAllPreviewSizes" -> {
-               result.success(mUVCCameraViewFactory.getAllPreviewSizes())
+                result.success(mUVCCameraViewFactory.getAllPreviewSizes())
             }
-
             "getCurrentCameraRequestParameters" -> {
                 result.success(mUVCCameraViewFactory.getCurrentCameraRequestParameters())
             }
-
             "updateResolution" -> {
                 mUVCCameraViewFactory.updateResolution(call.arguments())
             }
-
             "getPlatformVersion" -> {
                 result.success("Android " + Build.VERSION.RELEASE)
             }
-
             "setFlashlight" -> {
                 val isOn = call.argument<Boolean>("isOn") ?: false
                 mUVCCameraViewFactory.setFlashlight(isOn)
                 result.success(true)
             }
 
+            // --- KONTROL FILTER GAMBAR DARI FLUTTER ---
+            "setBrightness" -> {
+                val value = call.argument<Int>("brightness") ?: 0
+                mUVCCameraViewFactory.setBrightness(value)
+                result.success(true)
+            }
+            "getBrightness" -> {
+                result.success(mUVCCameraViewFactory.getBrightness())
+            }
+            "setContrast" -> {
+                val value = call.argument<Int>("contrast") ?: 0
+                mUVCCameraViewFactory.setContrast(value)
+                result.success(true)
+            }
+            "getContrast" -> {
+                result.success(mUVCCameraViewFactory.getContrast())
+            }
+            "setSaturation" -> {
+                val value = call.argument<Int>("saturation") ?: 0
+                mUVCCameraViewFactory.setSaturation(value)
+                result.success(true)
+            }
+            "getSaturation" -> {
+                result.success(mUVCCameraViewFactory.getSaturation())
+            }
             else -> {
                 result.notImplemented()
             }
         }
-
     }
 }

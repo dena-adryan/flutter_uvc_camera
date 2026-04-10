@@ -104,6 +104,33 @@ class UVCCameraController {
     }
   }
 
+  // --- BRIGHTNESS ---
+  Future<void> setBrightness(int value) async {
+    await _cameraChannel?.invokeMethod('setBrightness', {'brightness': value});
+  }
+
+  Future<int> getBrightness() async {
+    return await _cameraChannel?.invokeMethod('getBrightness') ?? 0;
+  }
+
+  // --- CONTRAST ---
+  Future<void> setContrast(int value) async {
+    await _cameraChannel?.invokeMethod('setContrast', {'contrast': value});
+  }
+
+  Future<int> getContrast() async {
+    return await _cameraChannel?.invokeMethod('getContrast') ?? 0;
+  }
+
+  // --- SATURATION ---
+  Future<void> setSaturation(int value) async {
+    await _cameraChannel?.invokeMethod('setSaturation', {'saturation': value});
+  }
+
+  Future<int> getSaturation() async {
+    return await _cameraChannel?.invokeMethod('getSaturation') ?? 0;
+  }
+
   /// 获取全部预览大小
   Future getAllPreviewSizes() async {
     var result = await _cameraChannel?.invokeMethod('getAllPreviewSizes');

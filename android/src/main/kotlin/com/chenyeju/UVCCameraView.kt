@@ -630,4 +630,34 @@ internal class UVCCameraView(
             Log.e("CameraView", "Current camera is not CameraUVC")
         }
     }
+
+    // --- KONTROL BRIGHTNESS ---
+    fun setBrightness(brightness: Int) {
+        val camera = getCurrentCamera()
+        if (camera is CameraUVC) camera.setBrightness(brightness)
+    }
+    fun getBrightness(): Int {
+        val camera = getCurrentCamera()
+        return if (camera is CameraUVC) camera.getBrightness() ?: 0 else 0
+    }
+
+    // --- KONTROL CONTRAST ---
+    fun setContrast(contrast: Int) {
+        val camera = getCurrentCamera()
+        if (camera is CameraUVC) camera.setContrast(contrast)
+    }
+    fun getContrast(): Int {
+        val camera = getCurrentCamera()
+        return if (camera is CameraUVC) camera.getContrast() ?: 0 else 0
+    }
+
+    // --- KONTROL SATURATION ---
+    fun setSaturation(saturation: Int) {
+        val camera = getCurrentCamera()
+        if (camera is CameraUVC) camera.setSaturation(saturation)
+    }
+    fun getSaturation(): Int {
+        val camera = getCurrentCamera()
+        return if (camera is CameraUVC) camera.getSaturation() ?: 0 else 0
+    }
 }
