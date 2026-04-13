@@ -253,6 +253,9 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         mUvcCamera?.updateCameraParams()
         isPreviewed = true
         postStateEvent(ICameraStateCallBack.State.OPENED)
+
+        forceResetHardware()
+
         if (Utils.debugCamera) {
             Logger.i(TAG, " start preview, name = ${device.deviceName}, preview=$previewSize")
         }
@@ -529,45 +532,6 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
      * Set Flashlight (via Backlight Compensation mapping) Unit 2, Selector 1, 2-byte payload
      * @param isOn true to turn on, false to turn off
      */
-    // fun setFlashlight(isOn: Boolean) {
-    //     val conn = mCtrlBlock?.connection ?: return
-    //     val device = mCtrlBlock?.device ?: return
-
-    //     mCameraHandler?.post {
-    //         try {
-    //             // Gunakan Interface 0 (Jalur kontrol resmi UVC)
-    //             val intf = device.getInterface(0)
-
-    //             // Kita claim agar Android mengizinkan transfer,
-    //             // TAPI JANGAN PERNAH DI-RELEASE setelahnya!
-    //             conn.claimInterface(intf, true)
-
-    //             mFlashInterface = intf
-
-    //             val data = if (isOn) byteArrayOf(0x01, 0x00) else byteArrayOf(0x00, 0x00)
-
-    //             val wValue = (0x01 shl 8) // Selector 1 (Backlight Compensation)
-    //             val wIndex = (0x02 shl 8) // Unit 2
-
-    //             // Kirim perintah
-    //             val ret = conn.controlTransfer(0x21, 0x01, wValue, wIndex, data, 2, 200)
-
-    //             if (ret >= 0) {
-    //                 mIsFlashOn = isOn
-    //             }
-
-    //             Logger.d(TAG, "Sonix Flashlight set to $isOn, Result: $ret")
-
-    //             // KUNCI UTAMA:
-    //             // conn.releaseInterface(intf) <--- BARIS INI HARUS DIHAPUS/DICOMMENT!
-    //             // Jangan pernah me-release interface saat kamera sedang streaming.
-
-    //         } catch (e: Exception) {
-    //             Logger.e(TAG, "Failed to toggle Sonix Flashlight", e)
-    //         }
-    //     }
-    // }
-
     fun setFlashlight(isOn: Boolean) {
         val uvc = mUvcCamera ?: return
 
@@ -581,11 +545,12 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 if (nativePtr == 0L) return@post
 
                 // 2. Bobol fungsi rahasia nativeSetBacklightComp di C++
-                val method = UVCCamera::class.java.getDeclaredMethod(
-                    "nativeSetBacklightComp",
-                    Long::class.javaPrimitiveType,
-                    Int::class.javaPrimitiveType
-                )
+                val method =
+                        UVCCamera::class.java.getDeclaredMethod(
+                                "nativeSetBacklightComp",
+                                Long::class.javaPrimitiveType,
+                                Int::class.javaPrimitiveType
+                        )
                 method.isAccessible = true
 
                 // 3. Eksekusi fungsi C++ secara langsung! (1 = ON, 0 = OFF)
@@ -595,9 +560,29 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 // 4. Update status
                 mIsFlashOn = isOn
                 Logger.d(TAG, "Native Flashlight set to $isOn, Result: $ret")
-
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to toggle Native Flashlight via Reflection", e)
+            }
+        }
+    }
+
+    // --- TAMBAHKAN FUNGSI INI ---
+    private fun forceResetHardware() {
+        mCameraHandler?.post {
+            try {
+                Logger.d(TAG, "Forcing hardware reset from Native...")
+
+                // 1. Matikan Flash (Panggil fungsi ninja reflection yang kita buat)
+                setFlashlight(false)
+
+                // 2. Reset Filter ke default (50 atau nilai tengah)
+                mUvcCamera?.brightness = 50
+                mUvcCamera?.contrast = 50
+                mUvcCamera?.saturation = 50
+
+                Logger.d(TAG, "Hardware reset complete.")
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to reset hardware on startup", e)
             }
         }
     }
