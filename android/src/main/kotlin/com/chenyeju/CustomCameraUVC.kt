@@ -23,6 +23,9 @@ import android.provider.MediaStore
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.TextureView
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.face.FaceDetection
+import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.jiangdg.ausbc.MultiCameraClient
 import com.jiangdg.ausbc.MultiCameraClient.Companion.CAPTURE_TIMES_OUT_SEC
 import com.jiangdg.ausbc.MultiCameraClient.Companion.MAX_NV21_DATA
@@ -39,6 +42,8 @@ import com.jiangdg.uvc.IFrameCallback
 import com.jiangdg.uvc.UVCCamera
 import java.io.File
 import java.util.concurrent.TimeUnit
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * UVC Camera
@@ -55,15 +60,63 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         private const val TAG = "CameraUVC"
     }
 
+    // Variabel ML Kit
+    private var isDetectingFace = false
+    private val faceDetector =
+            FaceDetection.getClient(
+                    FaceDetectorOptions.Builder()
+                            .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
+                            .build()
+            )
+
+    // Listener untuk mengirim hasil ke Flutter
+    interface OnFaceDetectedListener {
+        fun onFaceDetected(facesJson: String)
+    }
+    var faceListener: OnFaceDetectedListener? = null
+
+    // private val frameCallBack = IFrameCallback { frame ->
+    //     frame?.apply {
+    //         frame.position(0)
+    //         val data = ByteArray(capacity())
+    //         get(data)
+    //         mCameraRequest?.apply {
+    //             if (data.size != previewWidth * previewHeight * 3 / 2) {
+    //                 return@IFrameCallback
+    //             }
+    //             // for preview callback
+    //             mPreviewDataCbList.forEach { cb ->
+    //                 cb?.onPreviewData(
+    //                         data,
+    //                         previewWidth,
+    //                         previewHeight,
+    //                         IPreviewDataCallBack.DataFormat.NV21
+    //                 )
+    //             }
+    //             // for image
+    //             if (mNV21DataQueue.size >= MAX_NV21_DATA) {
+    //                 mNV21DataQueue.removeLast()
+    //             }
+    //             mNV21DataQueue.offerFirst(data)
+    //             // for video
+    //             // avoid preview size changed
+    //             putVideoData(data)
+    //         }
+    //     }
+    // }
+
     private val frameCallBack = IFrameCallback { frame ->
         frame?.apply {
             frame.position(0)
             val data = ByteArray(capacity())
             get(data)
             mCameraRequest?.apply {
+                // Validasi ukuran frame NV21
                 if (data.size != previewWidth * previewHeight * 3 / 2) {
                     return@IFrameCallback
                 }
+
+                // --- KODE ASLI BAWAAN LIBRARY (JANGAN DIHAPUS) ---
                 // for preview callback
                 mPreviewDataCbList.forEach { cb ->
                     cb?.onPreviewData(
@@ -81,6 +134,60 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 // for video
                 // avoid preview size changed
                 putVideoData(data)
+                // -------------------------------------------------
+
+                // 👇 ================================================== 👇
+                // 👇 --- KODE TAMBAHAN: GOOGLE ML KIT FACE DETECTION --- 👇
+                // 👇 ================================================== 👇
+                if (!isDetectingFace && faceListener != null) {
+                    isDetectingFace = true // Kunci agar frame berikutnya tidak menumpuk
+                    try {
+                        // 1. Ubah byte array NV21 dari USB menjadi format InputImage ML Kit
+                        val image =
+                                InputImage.fromByteArray(
+                                        data,
+                                        previewWidth,
+                                        previewHeight,
+                                        180,
+                                        InputImage.IMAGE_FORMAT_NV21
+                                )
+
+                        // 2. Proses gambar menggunakan ML Kit
+                        faceDetector
+                                .process(image)
+                                .addOnSuccessListener { faces ->
+                                    // 3. Jika wajah ditemukan, buat format JSON kordinatnya
+
+                                    Logger.d(TAG, "ML KIT FOUND: ${faces.size} faces") 
+
+                                    val jsonArray = JSONArray()
+                                    for (face in faces) {
+                                        val bounds = face.boundingBox
+                                        val jsonObj = JSONObject()
+                                        jsonObj.put("left", bounds.left)
+                                        jsonObj.put("top", bounds.top)
+                                        jsonObj.put("right", bounds.right)
+                                        jsonObj.put("bottom", bounds.bottom)
+                                        jsonArray.put(jsonObj)
+                                    }
+
+                                    // 4. Kirim string JSON ke listener (nanti diteruskan ke
+                                    // Flutter)
+                                    faceListener?.onFaceDetected(jsonArray.toString())
+                                }
+                                .addOnFailureListener { e ->
+                                    Logger.e(TAG, "ML Kit Face Detection failed", e)
+                                }
+                                .addOnCompleteListener {
+                                    // 5. Buka kunci agar frame selanjutnya bisa diproses
+                                    isDetectingFace = false
+                                }
+                    } catch (e: Exception) {
+                        Logger.e(TAG, "ML Kit Exception", e)
+                        isDetectingFace = false
+                    }
+                }
+                // 👆 ================================================== 👆
             }
         }
     }

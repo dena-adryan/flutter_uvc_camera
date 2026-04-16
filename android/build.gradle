@@ -73,6 +73,7 @@ android {
         implementation fileTree(dir: 'libs', include: ['*.jar'])
         implementation 'com.android.support.constraint:constraint-layout: 5.0.0'
         implementation 'com.google.code.gson:gson:2.8.8'
+        implementation 'com.google.mlkit:face-detection:16.1.6'
     }
 
     lintOptions {
