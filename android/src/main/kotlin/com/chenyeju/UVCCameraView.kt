@@ -593,12 +593,12 @@ internal class UVCCameraView(
                     override fun onComplete(path: String?) {
                         if (path != null) {
                             callback.onSuccess(path)
-                            MediaScannerConnection.scanFile(view.context, arrayOf(path), null) {
-                                    mPath,
-                                    uri ->
-                                // 文件已经被扫描到媒体数据库
-                                println("Media scan completed for file: $mPath with uri: $uri")
-                            }
+                            // MediaScannerConnection.scanFile(view.context, arrayOf(path), null) {
+                            //         mPath,
+                            //         uri ->
+                            //     // 文件已经被扫描到媒体数据库
+                            //     println("Media scan completed for file: $mPath with uri: $uri")
+                            // }
                         } else {
                             callback.onError("拍照失败，未能保存图片")
                         }

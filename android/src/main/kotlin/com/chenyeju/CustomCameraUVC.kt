@@ -436,12 +436,12 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 Logger.w(TAG, "save yuv to jpeg failed.")
                 return@submit
             }
-            val values = ContentValues()
-            values.put(MediaStore.Images.ImageColumns.TITLE, title)
-            values.put(MediaStore.Images.ImageColumns.DISPLAY_NAME, displayName)
-            values.put(MediaStore.Images.ImageColumns.DATA, path)
-            values.put(MediaStore.Images.ImageColumns.DATE_TAKEN, date)
-            ctx.contentResolver?.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            // val values = ContentValues()
+            // values.put(MediaStore.Images.ImageColumns.TITLE, title)
+            // values.put(MediaStore.Images.ImageColumns.DISPLAY_NAME, displayName)
+            // values.put(MediaStore.Images.ImageColumns.DATA, path)
+            // values.put(MediaStore.Images.ImageColumns.DATE_TAKEN, date)
+            // ctx.contentResolver?.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
             mMainHandler.post { callback.onComplete(path) }
             if (Utils.debugCamera) {
                 Logger.i(TAG, "captureImageInternal save path = $path")
