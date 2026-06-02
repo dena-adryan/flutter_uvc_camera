@@ -15,11 +15,9 @@
  */
 package com.chenyeju
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.SurfaceTexture
 import android.hardware.usb.UsbDevice
-import android.provider.MediaStore
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.TextureView
@@ -158,7 +156,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                                 .addOnSuccessListener { faces ->
                                     // 3. Jika wajah ditemukan, buat format JSON kordinatnya
 
-                                    Logger.d(TAG, "ML KIT FOUND: ${faces.size} faces") 
+                                    Logger.d(TAG, "ML KIT FOUND: ${faces.size} faces")
 
                                     val jsonArray = JSONArray()
                                     for (face in faces) {
@@ -400,51 +398,133 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         }
     }
 
+    // override fun captureImageInternal(savePath: String?, callback: ICaptureCallBack) {
+    //     mSaveImageExecutor.submit {
+    //         if (!CameraUtils.hasStoragePermission(ctx)) {
+    //             mMainHandler.post { callback.onError("have no storage permission") }
+    //             Logger.e(TAG, "open camera failed, have no storage permission")
+    //             return@submit
+    //         }
+    //         if (!isPreviewed) {
+    //             mMainHandler.post { callback.onError("camera not previewing") }
+    //             Logger.i(TAG, "captureImageInternal failed, camera not previewing")
+    //             return@submit
+    //         }
+    //         val data = mNV21DataQueue.pollFirst(CAPTURE_TIMES_OUT_SEC, TimeUnit.SECONDS)
+    //         if (data == null) {
+    //             mMainHandler.post { callback.onError("Times out") }
+    //             Logger.i(TAG, "captureImageInternal failed, times out.")
+    //             return@submit
+    //         }
+    //         mMainHandler.post { callback.onBegin() }
+    //         val date = mDateFormat.format(System.currentTimeMillis())
+    //         val title = savePath ?: "IMG_UVC_$date"
+    //         val displayName = savePath ?: "$title.jpg"
+    //         val path = savePath ?: "$mCameraDir/$displayName"
+    //         val location = Utils.getGpsLocation(ctx)
+    //         val width = mCameraRequest!!.previewWidth
+    //         val height = mCameraRequest!!.previewHeight
+    //         val ret = MediaUtils.saveYuv2Jpeg(path, data, width, height)
+    //         if (!ret) {
+    //             val file = File(path)
+    //             if (file.exists()) {
+    //                 file.delete()
+    //             }
+    //             mMainHandler.post { callback.onError("save yuv to jpeg failed.") }
+    //             Logger.w(TAG, "save yuv to jpeg failed.")
+    //             return@submit
+    //         }
+    //         // val values = ContentValues()
+    //         // values.put(MediaStore.Images.ImageColumns.TITLE, title)
+    //         // values.put(MediaStore.Images.ImageColumns.DISPLAY_NAME, displayName)
+    //         // values.put(MediaStore.Images.ImageColumns.DATA, path)
+    //         // values.put(MediaStore.Images.ImageColumns.DATE_TAKEN, date)
+    //         // ctx.contentResolver?.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+    //         mMainHandler.post { callback.onComplete(path) }
+    //         if (Utils.debugCamera) {
+    //             Logger.i(TAG, "captureImageInternal save path = $path")
+    //         }
+    //     }
+    // }
+
     override fun captureImageInternal(savePath: String?, callback: ICaptureCallBack) {
+        Logger.d(TAG, "🔥🔥🔥 KODE CUSTOM CAPTURE BERHASIL DIPANGGIL! 🔥🔥🔥")
+        
         mSaveImageExecutor.submit {
-            if (!CameraUtils.hasStoragePermission(ctx)) {
-                mMainHandler.post { callback.onError("have no storage permission") }
-                Logger.e(TAG, "open camera failed, have no storage permission")
-                return@submit
-            }
             if (!isPreviewed) {
                 mMainHandler.post { callback.onError("camera not previewing") }
-                Logger.i(TAG, "captureImageInternal failed, camera not previewing")
                 return@submit
             }
-            val data = mNV21DataQueue.pollFirst(CAPTURE_TIMES_OUT_SEC, TimeUnit.SECONDS)
+            // Ambil frame dari antrean kamera (Timeout 3 detik)
+            val data = mNV21DataQueue.pollFirst(3, TimeUnit.SECONDS)
             if (data == null) {
                 mMainHandler.post { callback.onError("Times out") }
-                Logger.i(TAG, "captureImageInternal failed, times out.")
                 return@submit
             }
             mMainHandler.post { callback.onBegin() }
-            val date = mDateFormat.format(System.currentTimeMillis())
-            val title = savePath ?: "IMG_UVC_$date"
-            val displayName = savePath ?: "$title.jpg"
-            val path = savePath ?: "$mCameraDir/$displayName"
-            val location = Utils.getGpsLocation(ctx)
+
+            // =========================================================
+            // KITA PAKSA PATH-NYA KE CACHE INTERNAL. 
+            // Titik. Tidak ada kompromi dengan MediaStore atau DCIM!
+            // =========================================================
+            val absolutePath = ctx.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
+            Logger.d(TAG, "👉 Menyimpan ke Cache: $absolutePath")
+
             val width = mCameraRequest!!.previewWidth
             val height = mCameraRequest!!.previewHeight
-            val ret = MediaUtils.saveYuv2Jpeg(path, data, width, height)
+            
+            // Konversi frame NV21 ke JPG lalu simpan ke Cache
+            val ret = MediaUtils.saveYuv2Jpeg(absolutePath, data, width, height)
             if (!ret) {
-                val file = File(path)
-                if (file.exists()) {
-                    file.delete()
-                }
+                val file = File(absolutePath)
+                if (file.exists()) file.delete()
                 mMainHandler.post { callback.onError("save yuv to jpeg failed.") }
-                Logger.w(TAG, "save yuv to jpeg failed.")
                 return@submit
             }
-            // val values = ContentValues()
-            // values.put(MediaStore.Images.ImageColumns.TITLE, title)
-            // values.put(MediaStore.Images.ImageColumns.DISPLAY_NAME, displayName)
-            // values.put(MediaStore.Images.ImageColumns.DATA, path)
-            // values.put(MediaStore.Images.ImageColumns.DATE_TAKEN, date)
-            // ctx.contentResolver?.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            mMainHandler.post { callback.onComplete(path) }
-            if (Utils.debugCamera) {
-                Logger.i(TAG, "captureImageInternal save path = $path")
+
+            // Langsung kembalikan path ke Flutter (TIDAK ADA KODE INSERT GALERI SAMA SEKALI)
+            mMainHandler.post {
+                callback.onComplete(absolutePath)
+            }
+        }
+    }
+
+    // --- FUNGSI BYPASS TOTAL UNTUK MENGHINDARI GALERI ---
+    fun takePictureCustom(callback: UVCStringCallback) {
+        Logger.d(TAG, "🔥🔥🔥 BYPASS TOTAL KODE PABRIK BERHASIL! 🔥🔥🔥")
+        
+        mSaveImageExecutor.submit {
+            if (!isPreviewed) {
+                mMainHandler.post { callback.onError("camera not previewing") }
+                return@submit
+            }
+            
+            // Ambil frame (Timeout 3 detik)
+            val data = mNV21DataQueue.pollFirst(3, TimeUnit.SECONDS)
+            if (data == null) {
+                mMainHandler.post { callback.onError("Times out") }
+                return@submit
+            }
+
+            // BUAT PATH CACHE RAHASIA KITA SENDIRI
+            val absolutePath = ctx.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
+            Logger.d(TAG, "👉 Simpan rahasia ke: $absolutePath")
+
+            val width = mCameraRequest!!.previewWidth
+            val height = mCameraRequest!!.previewHeight
+            
+            // Convert dan simpan gambar
+            val ret = MediaUtils.saveYuv2Jpeg(absolutePath, data, width, height)
+            if (!ret) {
+                val file = File(absolutePath)
+                if (file.exists()) file.delete()
+                mMainHandler.post { callback.onError("save yuv to jpeg failed.") }
+                return@submit
+            }
+
+            // LANGSUNG KIRIM KE FLUTTER, TIDAK ADA CAMPUR TANGAN MEDIASTORE!
+            mMainHandler.post {
+                callback.onSuccess(absolutePath)
             }
         }
     }

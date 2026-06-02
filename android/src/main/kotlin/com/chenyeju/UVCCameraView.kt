@@ -577,42 +577,50 @@ internal class UVCCameraView(
 
     private fun isCameraOpened() = getCurrentCamera()?.isCameraOpened() ?: false
 
-    fun takePicture(callback: UVCStringCallback) {
+    // fun takePicture(callback: UVCStringCallback) {
+    //     if (!isCameraOpened()) {
+    //         callFlutter("摄像头未打开")
+    //         setCameraERRORState("设备未打开")
+    //         return
+    //     }
 
+    //     // Jangan kirim parameter savePath apa pun, karena sering dianggap sebagai folder oleh
+    //     // library aslinya
+    //     captureImage(
+    //             object : ICaptureCallBack {
+    //                 override fun onBegin() {}
+
+    //                 override fun onComplete(path: String?) {
+    //                     if (path != null) {
+    //                         // CUKUP PANGGIL INI SAJA, JANGAN ADA MediaScannerConnection!
+    //                         callback.onSuccess(path)
+    //                     } else {
+    //                         callback.onError("拍照失败，未能保存图片")
+    //                     }
+    //                 }
+
+    //                 override fun onError(error: String?) {
+    //                     callback.onError(error ?: "未知错误")
+    //                 }
+    //             }
+    //     )
+    // }
+
+    fun takePicture(callback: UVCStringCallback) {
         if (!isCameraOpened()) {
             callFlutter("摄像头未打开")
             setCameraERRORState("设备未打开")
             return
         }
 
-        val tempCachePath =
-                mContext.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
-
-        captureImage(
-                object : ICaptureCallBack {
-                    override fun onBegin() {
-                        // callFlutter("开始拍照")
-                    }
-
-                    override fun onComplete(path: String?) {
-                        if (path != null) {
-                            callback.onSuccess(path)
-                            // MediaScannerConnection.scanFile(view.context, arrayOf(path), null) {
-                            //         mPath,
-                            //         uri ->
-                            //     // 文件已经被扫描到媒体数据库
-                            //     println("Media scan completed for file: $mPath with uri: $uri")
-                            // }
-                        } else {
-                            callback.onError("拍照失败，未能保存图片")
-                        }
-                    }
-                    override fun onError(error: String?) {
-                        callback.onError(error ?: "未知错误")
-                    }
-                },
-                tempCachePath
-        )
+        // KITA BYPASS KODE PABRIKNYA DI SINI
+        val camera = getCurrentCamera()
+        if (camera is CameraUVC) {
+            // Panggil fungsi custom rahasia kita
+            camera.takePictureCustom(callback)
+        } else {
+            callback.onError("Camera is not CameraUVC")
+        }
     }
 
     fun captureVideo(callback: UVCStringCallback) {
