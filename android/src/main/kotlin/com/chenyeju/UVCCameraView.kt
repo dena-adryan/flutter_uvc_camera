@@ -584,6 +584,10 @@ internal class UVCCameraView(
             setCameraERRORState("设备未打开")
             return
         }
+
+        val tempCachePath =
+                mContext.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
+
         captureImage(
                 object : ICaptureCallBack {
                     override fun onBegin() {
@@ -606,7 +610,8 @@ internal class UVCCameraView(
                     override fun onError(error: String?) {
                         callback.onError(error ?: "未知错误")
                     }
-                }
+                },
+                tempCachePath
         )
     }
 
