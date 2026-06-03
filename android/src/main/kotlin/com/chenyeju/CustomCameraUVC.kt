@@ -753,6 +753,20 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         }
     }
 
+    // --- KONTROL MANUAL FOKUS (Nilai 0 - 100) ---
+    fun setManualFocus(value: Int) {
+        mCameraHandler?.post {
+            try {
+                // Pastikan Auto Focus dimatikan dulu sebelum melakukan manual fokus
+                mUvcCamera?.autoFocus = false 
+                mUvcCamera?.setFocus(value)
+                Logger.d(TAG, "Native Manual Focus set to: $value")
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to set manual focus", e)
+            }
+        }
+    }
+
     // --- TAMBAHKAN FUNGSI INI ---
     private fun forceResetHardware() {
         mCameraHandler?.post {

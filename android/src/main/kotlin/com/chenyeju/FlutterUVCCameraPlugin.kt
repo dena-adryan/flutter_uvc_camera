@@ -157,6 +157,16 @@ class FlutterUVCCameraPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             "getSaturation" -> {
                 result.success(mUVCCameraViewFactory.getSaturation())
             }
+            "setAutoFocus" -> {
+                val enabled = call.argument<Boolean>("enabled") ?: true
+                mUVCCameraViewFactory.setAutoFocus(enabled)
+                result.success(true)
+            }
+            "setManualFocus" -> {
+                val value = call.argument<Int>("value") ?: 0
+                mUVCCameraViewFactory.setManualFocus(value)
+                result.success(true)
+            }
             else -> {
                 result.notImplemented()
             }

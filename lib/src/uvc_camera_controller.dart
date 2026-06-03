@@ -166,6 +166,16 @@ class UVCCameraController {
     return path;
   }
 
+  // --- AUTO FOCUS ---
+  Future<void> setAutoFocus(bool enabled) async {
+    await _cameraChannel?.invokeMethod('setAutoFocus', {'enabled': enabled});
+  }
+
+  // --- MANUAL FOCUS (Nilai 0 - 100) ---
+  Future<void> setManualFocus(int value) async {
+    await _cameraChannel?.invokeMethod('setManualFocus', {'value': value});
+  }
+
   void _setCameraState(String state) {
     debugPrint("Camera: $state");
     switch (state) {

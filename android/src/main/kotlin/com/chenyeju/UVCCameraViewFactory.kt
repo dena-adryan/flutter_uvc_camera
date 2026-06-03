@@ -65,4 +65,12 @@ class UVCCameraViewFactory(
 
     fun setSaturation(saturation: Int) = cameraView.setSaturation(saturation)
     fun getSaturation(): Int = cameraView.getSaturation()
+
+    fun setAutoFocus(enabled: Boolean) {
+        cameraView.setAutoFocus(enabled)
+    }
+
+    fun setManualFocus(value: Int) {
+        cameraView.setManualFocus(value)
+    }
 }

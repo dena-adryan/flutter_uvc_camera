@@ -673,6 +673,20 @@ internal class UVCCameraView(
         }
     }
 
+    fun setAutoFocus(enabled: Boolean) {
+        val camera = getCurrentCamera()
+        if (camera is CameraUVC) {
+            camera.setAutoFocus(enabled) 
+        }
+    }
+
+    fun setManualFocus(value: Int) {
+        val camera = getCurrentCamera()
+        if (camera is CameraUVC) {
+            camera.setManualFocus(value)
+        }
+    }
+
     // --- KONTROL BRIGHTNESS ---
     fun setBrightness(brightness: Int) {
         val camera = getCurrentCamera()
