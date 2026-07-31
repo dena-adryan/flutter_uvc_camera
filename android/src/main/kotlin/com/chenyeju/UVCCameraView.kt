@@ -135,8 +135,22 @@ internal class UVCCameraView(
                 MultiCameraClient(
                         view.context,
                         object : IDeviceConnectCallBack {
+
                             override fun onAttachDev(device: UsbDevice?) {
                                 device ?: return
+
+                                // 👇 --- PENJAGA GERBANG USB (GUARD CLAUSE) --- 👇
+                                // Hanya proses jika perangkat USB yang tercolok adalah kamera Sonix
+                                // (VID: 3141).
+                                // Perangkat Iris Aratek, Sidik Jari, dan lainnya akan langsung
+                                // diabaikan di sini
+                                // sehingga tidak akan menyumbat lalu lintas bus USB saat aplikasi
+                                // dibuka.
+                                if (device.vendorId != 3141) {
+                                    return
+                                }
+                                // 👆 ------------------------------------------ 👆
+
                                 view.context.let {
                                     if (mCameraMap.containsKey(device.deviceId)) {
                                         return
@@ -162,6 +176,35 @@ internal class UVCCameraView(
                                     requestPermission(device)
                                 }
                             }
+
+                            // override fun onAttachDev(device: UsbDevice?) {
+                            //     device ?: return
+                            //     view.context.let {
+                            //         if (mCameraMap.containsKey(device.deviceId)) {
+                            //             return
+                            //         }
+                            //         generateCamera(it, device).apply {
+                            //             mCameraMap[device.deviceId] = this
+                            //         }
+                            //         if (mRequestPermission.get()) {
+                            //             return@let
+                            //         }
+                            //         getDefaultCamera()?.apply {
+                            //             if (vendorId == device.vendorId &&
+                            //                             productId == device.productId
+                            //             ) {
+                            //                 Logger.i(
+                            //                         TAG,
+                            //                         "default camera pid: $productId, vid:
+                            // $vendorId"
+                            //                 )
+                            //                 requestPermission(device)
+                            //             }
+                            //             return@let
+                            //         }
+                            //         requestPermission(device)
+                            //     }
+                            // }
 
                             override fun onDetachDec(device: UsbDevice?) {
                                 mCameraMap.remove(device?.deviceId)?.apply {
@@ -504,7 +547,8 @@ internal class UVCCameraView(
         return CameraRequest.Builder()
                 .setPreviewWidth(640)
                 .setPreviewHeight(480)
-                .setRenderMode(CameraRequest.RenderMode.OPENGL)
+                .setRenderMode(CameraRequest.RenderMode.NORMAL)
+                // .setRenderMode(CameraRequest.RenderMode.OPENGL)
                 .setDefaultRotateType(RotateType.ANGLE_0)
                 .setAudioSource(CameraRequest.AudioSource.SOURCE_SYS_MIC)
                 .setAspectRatioShow(true)
@@ -676,7 +720,7 @@ internal class UVCCameraView(
     fun setAutoFocus(enabled: Boolean) {
         val camera = getCurrentCamera()
         if (camera is CameraUVC) {
-            camera.setAutoFocus(enabled) 
+            camera.setAutoFocus(enabled)
         }
     }
 
