@@ -25,7 +25,6 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.face.FaceDetection
 import com.google.mlkit.vision.face.FaceDetectorOptions
 import com.jiangdg.ausbc.MultiCameraClient
-import com.jiangdg.ausbc.MultiCameraClient.Companion.CAPTURE_TIMES_OUT_SEC
 import com.jiangdg.ausbc.MultiCameraClient.Companion.MAX_NV21_DATA
 import com.jiangdg.ausbc.callback.ICameraStateCallBack
 import com.jiangdg.ausbc.callback.ICaptureCallBack
@@ -449,7 +448,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
 
     override fun captureImageInternal(savePath: String?, callback: ICaptureCallBack) {
         Logger.d(TAG, "🔥🔥🔥 KODE CUSTOM CAPTURE BERHASIL DIPANGGIL! 🔥🔥🔥")
-        
+
         mSaveImageExecutor.submit {
             if (!isPreviewed) {
                 mMainHandler.post { callback.onError("camera not previewing") }
@@ -464,15 +463,16 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
             mMainHandler.post { callback.onBegin() }
 
             // =========================================================
-            // KITA PAKSA PATH-NYA KE CACHE INTERNAL. 
+            // KITA PAKSA PATH-NYA KE CACHE INTERNAL.
             // Titik. Tidak ada kompromi dengan MediaStore atau DCIM!
             // =========================================================
-            val absolutePath = ctx.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
+            val absolutePath =
+                    ctx.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
             Logger.d(TAG, "👉 Menyimpan ke Cache: $absolutePath")
 
             val width = mCameraRequest!!.previewWidth
             val height = mCameraRequest!!.previewHeight
-            
+
             // Konversi frame NV21 ke JPG lalu simpan ke Cache
             val ret = MediaUtils.saveYuv2Jpeg(absolutePath, data, width, height)
             if (!ret) {
@@ -483,22 +483,20 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
             }
 
             // Langsung kembalikan path ke Flutter (TIDAK ADA KODE INSERT GALERI SAMA SEKALI)
-            mMainHandler.post {
-                callback.onComplete(absolutePath)
-            }
+            mMainHandler.post { callback.onComplete(absolutePath) }
         }
     }
 
     // --- FUNGSI BYPASS TOTAL UNTUK MENGHINDARI GALERI ---
     fun takePictureCustom(callback: UVCStringCallback) {
         Logger.d(TAG, "🔥🔥🔥 BYPASS TOTAL KODE PABRIK BERHASIL! 🔥🔥🔥")
-        
+
         mSaveImageExecutor.submit {
             if (!isPreviewed) {
                 mMainHandler.post { callback.onError("camera not previewing") }
                 return@submit
             }
-            
+
             // Ambil frame (Timeout 3 detik)
             val data = mNV21DataQueue.pollFirst(3, TimeUnit.SECONDS)
             if (data == null) {
@@ -507,12 +505,13 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
             }
 
             // BUAT PATH CACHE RAHASIA KITA SENDIRI
-            val absolutePath = ctx.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
+            val absolutePath =
+                    ctx.cacheDir.absolutePath + "/temp_uvc_${System.currentTimeMillis()}.jpg"
             Logger.d(TAG, "👉 Simpan rahasia ke: $absolutePath")
 
             val width = mCameraRequest!!.previewWidth
             val height = mCameraRequest!!.previewHeight
-            
+
             // Convert dan simpan gambar
             val ret = MediaUtils.saveYuv2Jpeg(absolutePath, data, width, height)
             if (!ret) {
@@ -523,9 +522,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
             }
 
             // LANGSUNG KIRIM KE FLUTTER, TIDAK ADA CAMPUR TANGAN MEDIASTORE!
-            mMainHandler.post {
-                callback.onSuccess(absolutePath)
-            }
+            mMainHandler.post { callback.onSuccess(absolutePath) }
         }
     }
 
@@ -758,7 +755,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         mCameraHandler?.post {
             try {
                 // Pastikan Auto Focus dimatikan dulu sebelum melakukan manual fokus
-                mUvcCamera?.autoFocus = false 
+                mUvcCamera?.autoFocus = false
                 mUvcCamera?.setFocus(value)
                 Logger.d(TAG, "Native Manual Focus set to: $value")
             } catch (e: Exception) {
@@ -768,24 +765,71 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
     }
 
     // --- TAMBAHKAN FUNGSI INI ---
+    // private fun forceResetHardware() {
+    //     mCameraHandler?.post {
+    //         try {
+    //             Logger.d(TAG, "Forcing hardware reset from Native...")
+
+    //             // 1. Matikan Flash (Panggil fungsi ninja reflection yang kita buat)
+    //             setFlashlight(false)
+
+    //             // 2. Reset Filter ke default (50 atau nilai tengah)
+    //             mUvcCamera?.brightness = 50
+    //             mUvcCamera?.contrast = 50
+    //             mUvcCamera?.saturation = 50
+
+    //             Logger.d(TAG, "Hardware reset complete.")
+    //         } catch (e: Exception) {
+    //             Logger.e(TAG, "Failed to reset hardware on startup", e)
+    //         }
+    //     }
+    // }
+
+    // private fun forceResetHardware() {
+    //     // Beri delay 500ms agar jalur video terbuka mulus dulu di awal tanpa interupsi
+    //     mCameraHandler?.postDelayed({
+    //         try {
+    //             Logger.d(TAG, "Forcing hardware reset from Native (Delayed)...")
+
+    //             // Matikan Flash
+    //             setFlashlight(false)
+
+    //             // Reset Filter ke default (50)
+    //             mUvcCamera?.brightness = 50
+    //             mUvcCamera?.contrast = 50
+    //             mUvcCamera?.saturation = 50
+
+    //             Logger.d(TAG, "Hardware reset complete.")
+    //         } catch (e: Exception) {
+    //             Logger.e(TAG, "Failed to reset hardware on startup", e)
+    //         }
+    //     }, 1000) // 👈 DELAY 500 MILIDETIK
+    // }
+
     private fun forceResetHardware() {
-        mCameraHandler?.post {
-            try {
-                Logger.d(TAG, "Forcing hardware reset from Native...")
-
-                // 1. Matikan Flash (Panggil fungsi ninja reflection yang kita buat)
-                setFlashlight(false)
-
-                // 2. Reset Filter ke default (50 atau nilai tengah)
-                mUvcCamera?.brightness = 50
-                mUvcCamera?.contrast = 50
-                mUvcCamera?.saturation = 50
-
-                Logger.d(TAG, "Hardware reset complete.")
-            } catch (e: Exception) {
-                Logger.e(TAG, "Failed to reset hardware on startup", e)
-            }
+        // 1. MATIKAN FLASH INSTAN (Tanpa Delay) agar tidak berkedip/menyala di awal
+        try {
+            setFlashlight(false)
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to force kill flash on startup", e)
         }
+
+        // 2. Beri delay 2 detik HANYA untuk reset filter (Brightness, Contrast, Saturation)
+        // agar tidak mengganggu aliran video pertama kali terbuka
+        mCameraHandler?.postDelayed(
+                {
+                    try {
+                        Logger.d(TAG, "Forcing filter reset from Native (Delayed)...")
+                        mUvcCamera?.brightness = 50
+                        mUvcCamera?.contrast = 50
+                        mUvcCamera?.saturation = 50
+                        Logger.d(TAG, "Filter reset complete.")
+                    } catch (e: Exception) {
+                        Logger.e(TAG, "Failed to reset filters on startup", e)
+                    }
+                },
+                500
+        ) // Delay 2000 milidetik
     }
 
     /** Get hue */
