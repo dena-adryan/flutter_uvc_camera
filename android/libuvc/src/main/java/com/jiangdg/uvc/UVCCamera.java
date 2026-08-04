@@ -965,13 +965,13 @@ public class UVCCamera {
     	    	if ((mControlSupports != 0) && (mProcSupports != 0)) {
 	    	    	nativeUpdateBrightnessLimit(mNativePtr);
 	    	    	nativeUpdateContrastLimit(mNativePtr);
-	    	    	nativeUpdateSharpnessLimit(mNativePtr);
-	    	    	nativeUpdateGainLimit(mNativePtr);
-	    	    	nativeUpdateGammaLimit(mNativePtr);
+	    	    	// nativeUpdateSharpnessLimit(mNativePtr);
+	    	    	// nativeUpdateGainLimit(mNativePtr);
+	    	    	// nativeUpdateGammaLimit(mNativePtr);
 	    	    	nativeUpdateSaturationLimit(mNativePtr);
-	    	    	nativeUpdateHueLimit(mNativePtr);
-	    	    	nativeUpdateZoomLimit(mNativePtr);
-	    	    	nativeUpdateWhiteBlanceLimit(mNativePtr);
+	    	    	// nativeUpdateHueLimit(mNativePtr);
+	    	    	// nativeUpdateZoomLimit(mNativePtr);
+	    	    	// nativeUpdateWhiteBlanceLimit(mNativePtr);
 	    	    	nativeUpdateFocusLimit(mNativePtr);
     	    	}
     	    	if (false) {
