@@ -398,22 +398,67 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
     //     }
     // }
 
+    // override fun closeCameraInternal() {
+    //     // 👇 ========================================================== 👇
+    //     // 👇 --- PERBAIKAN: GUNAKAN REFLECTION UNTUK MATIKAN SENTER --- 👇
+    //     // 👇 ========================================================== 👇
+    //     if (mIsFlashOn) {
+    //         Logger.d(TAG, "Flash is still ON. Forcing OFF before close...")
+    //         try {
+    //             val uvc = mUvcCamera
+    //             if (uvc != null) {
+    //                 // 1. Ambil pointer C++ (mNativePtr)
+    //                 val ptrField = UVCCamera::class.java.getDeclaredField("mNativePtr")
+    //                 ptrField.isAccessible = true
+    //                 val nativePtr = ptrField.getLong(uvc)
+
+    //                 if (nativePtr != 0L) {
+    //                     // 2. Ambil fungsi native C++
+    //                     val method =
+    //                             UVCCamera::class.java.getDeclaredMethod(
+    //                                     "nativeSetBacklightComp",
+    //                                     Long::class.javaPrimitiveType,
+    //                                     Int::class.javaPrimitiveType
+    //                             )
+    //                     method.isAccessible = true
+
+    //                     // 3. Eksekusi OFF (nilai 0) secara sinkron menggunakan mesin C++
+    //                     val ret = method.invoke(null, nativePtr, 0) as Int
+    //                     mIsFlashOn = false
+    //                     Logger.d(TAG, "Native Flashlight turned OFF on close, Result: $ret")
+    //                 }
+    //             }
+    //         } catch (e: Exception) {
+    //             Logger.e(TAG, "Failed to turn off native flash before closing", e)
+    //         }
+    //     }
+    //     // 👆 ========================================================== 👆
+
+    //     // (Hapus/biarkan bagian mFlashInterface yang di-comment karena sudah tidak dipakai)
+
+    //     postStateEvent(ICameraStateCallBack.State.CLOSED)
+    //     isPreviewed = false
+    //     releaseEncodeProcessor()
+    //     mUvcCamera?.destroy() // Mesin C++ dihancurkan setelah senter mati
+    //     mUvcCamera = null
+    //     if (Utils.debugCamera) {
+    //         Logger.i(TAG, " stop preview, name = ${device.deviceName}")
+    //     }
+    // }
+
     override fun closeCameraInternal() {
-        // 👇 ========================================================== 👇
-        // 👇 --- PERBAIKAN: GUNAKAN REFLECTION UNTUK MATIKAN SENTER --- 👇
-        // 👇 ========================================================== 👇
-        if (mIsFlashOn) {
-            Logger.d(TAG, "Flash is still ON. Forcing OFF before close...")
+        val uvc = mUvcCamera
+        if (uvc != null) {
             try {
-                val uvc = mUvcCamera
-                if (uvc != null) {
-                    // 1. Ambil pointer C++ (mNativePtr)
+                Logger.d(TAG, "Native close: Resetting all hardware parameters to default...")
+
+                // 1. Reset Senter jika masih menyala (Menggunakan JNI C++)
+                if (mIsFlashOn) {
                     val ptrField = UVCCamera::class.java.getDeclaredField("mNativePtr")
                     ptrField.isAccessible = true
                     val nativePtr = ptrField.getLong(uvc)
 
                     if (nativePtr != 0L) {
-                        // 2. Ambil fungsi native C++
                         val method =
                                 UVCCamera::class.java.getDeclaredMethod(
                                         "nativeSetBacklightComp",
@@ -421,26 +466,33 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                                         Int::class.javaPrimitiveType
                                 )
                         method.isAccessible = true
-
-                        // 3. Eksekusi OFF (nilai 0) secara sinkron menggunakan mesin C++
-                        val ret = method.invoke(null, nativePtr, 0) as Int
+                        method.invoke(null, nativePtr, 0) // Eksekusi mati (0)
                         mIsFlashOn = false
-                        Logger.d(TAG, "Native Flashlight turned OFF on close, Result: $ret")
                     }
                 }
+
+                // 2. Reset Filter Gambar ke Nilai Default (50) secara langsung
+                uvc.brightness = 50
+                uvc.contrast = 50
+                uvc.saturation = 50
+
+                // 3. Kembalikan Auto-Focus ke True secara langsung
+                uvc.autoFocus = true
+
+                Logger.d(TAG, "Native close: Flashlight, Filters, and AutoFocus reset SUCCESSFUL.")
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to turn off native flash before closing", e)
+                Logger.e(TAG, "Failed to reset hardware parameters during close", e)
             }
         }
-        // 👆 ========================================================== 👆
 
-        // (Hapus/biarkan bagian mFlashInterface yang di-comment karena sudah tidak dipakai)
-
+        // 4. Hancurkan Kamera Seperti Biasa
         postStateEvent(ICameraStateCallBack.State.CLOSED)
         isPreviewed = false
         releaseEncodeProcessor()
-        mUvcCamera?.destroy() // Mesin C++ dihancurkan setelah senter mati
+
+        mUvcCamera?.destroy() // Mesin C++ dihancurkan setelah semuanya bersih
         mUvcCamera = null
+
         if (Utils.debugCamera) {
             Logger.i(TAG, " stop preview, name = ${device.deviceName}")
         }
