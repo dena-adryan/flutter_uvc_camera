@@ -365,86 +365,86 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         }
     }
 
-    override fun closeCameraInternal() {
+    // override fun closeCameraInternal() {
 
+    //     if (mIsFlashOn) {
+    //         Logger.d(TAG, "Flash is still ON. Forcing OFF before close...")
+    //         try {
+    //             val dataOff = byteArrayOf(0x00, 0x00)
+    //             mCtrlBlock?.connection?.controlTransfer(0x21, 0x01, 0x0100, 0x0200, dataOff, 2,
+    // 200)
+    //             mIsFlashOn = false // Reset penanda
+    //         } catch (e: Exception) {
+    //             Logger.e(TAG, "Failed to turn off flash before closing", e)
+    //         }
+    //     }
+
+    //     // try {
+    //     //     mFlashInterface?.let { intf ->
+    //     //         mCtrlBlock?.connection?.releaseInterface(intf)
+    //     //         mFlashInterface = null
+    //     //         Logger.d(TAG, "Flash interface released safely before closing.")
+    //     //     }
+    //     // } catch (e: Exception) {
+    //     //     Logger.e(TAG, "Error releasing flash interface", e)
+    //     // }
+    //     postStateEvent(ICameraStateCallBack.State.CLOSED)
+    //     isPreviewed = false
+    //     releaseEncodeProcessor()
+    //     mUvcCamera?.destroy()
+    //     mUvcCamera = null
+    //     if (Utils.debugCamera) {
+    //         Logger.i(TAG, " stop preview, name = ${device.deviceName}")
+    //     }
+    // }
+
+    override fun closeCameraInternal() {
+        // 👇 ========================================================== 👇
+        // 👇 --- PERBAIKAN: GUNAKAN REFLECTION UNTUK MATIKAN SENTER --- 👇
+        // 👇 ========================================================== 👇
         if (mIsFlashOn) {
             Logger.d(TAG, "Flash is still ON. Forcing OFF before close...")
             try {
-                val dataOff = byteArrayOf(0x00, 0x00)
-                mCtrlBlock?.connection?.controlTransfer(0x21, 0x01, 0x0100, 0x0200, dataOff, 2, 200)
-                mIsFlashOn = false // Reset penanda
+                val uvc = mUvcCamera
+                if (uvc != null) {
+                    // 1. Ambil pointer C++ (mNativePtr)
+                    val ptrField = UVCCamera::class.java.getDeclaredField("mNativePtr")
+                    ptrField.isAccessible = true
+                    val nativePtr = ptrField.getLong(uvc)
+
+                    if (nativePtr != 0L) {
+                        // 2. Ambil fungsi native C++
+                        val method =
+                                UVCCamera::class.java.getDeclaredMethod(
+                                        "nativeSetBacklightComp",
+                                        Long::class.javaPrimitiveType,
+                                        Int::class.javaPrimitiveType
+                                )
+                        method.isAccessible = true
+
+                        // 3. Eksekusi OFF (nilai 0) secara sinkron menggunakan mesin C++
+                        val ret = method.invoke(null, nativePtr, 0) as Int
+                        mIsFlashOn = false
+                        Logger.d(TAG, "Native Flashlight turned OFF on close, Result: $ret")
+                    }
+                }
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to turn off flash before closing", e)
+                Logger.e(TAG, "Failed to turn off native flash before closing", e)
             }
         }
+        // 👆 ========================================================== 👆
 
-        // try {
-        //     mFlashInterface?.let { intf ->
-        //         mCtrlBlock?.connection?.releaseInterface(intf)
-        //         mFlashInterface = null
-        //         Logger.d(TAG, "Flash interface released safely before closing.")
-        //     }
-        // } catch (e: Exception) {
-        //     Logger.e(TAG, "Error releasing flash interface", e)
-        // }
+        // (Hapus/biarkan bagian mFlashInterface yang di-comment karena sudah tidak dipakai)
+
         postStateEvent(ICameraStateCallBack.State.CLOSED)
         isPreviewed = false
         releaseEncodeProcessor()
-        mUvcCamera?.destroy()
+        mUvcCamera?.destroy() // Mesin C++ dihancurkan setelah senter mati
         mUvcCamera = null
         if (Utils.debugCamera) {
             Logger.i(TAG, " stop preview, name = ${device.deviceName}")
         }
     }
-
-    // override fun captureImageInternal(savePath: String?, callback: ICaptureCallBack) {
-    //     mSaveImageExecutor.submit {
-    //         if (!CameraUtils.hasStoragePermission(ctx)) {
-    //             mMainHandler.post { callback.onError("have no storage permission") }
-    //             Logger.e(TAG, "open camera failed, have no storage permission")
-    //             return@submit
-    //         }
-    //         if (!isPreviewed) {
-    //             mMainHandler.post { callback.onError("camera not previewing") }
-    //             Logger.i(TAG, "captureImageInternal failed, camera not previewing")
-    //             return@submit
-    //         }
-    //         val data = mNV21DataQueue.pollFirst(CAPTURE_TIMES_OUT_SEC, TimeUnit.SECONDS)
-    //         if (data == null) {
-    //             mMainHandler.post { callback.onError("Times out") }
-    //             Logger.i(TAG, "captureImageInternal failed, times out.")
-    //             return@submit
-    //         }
-    //         mMainHandler.post { callback.onBegin() }
-    //         val date = mDateFormat.format(System.currentTimeMillis())
-    //         val title = savePath ?: "IMG_UVC_$date"
-    //         val displayName = savePath ?: "$title.jpg"
-    //         val path = savePath ?: "$mCameraDir/$displayName"
-    //         val location = Utils.getGpsLocation(ctx)
-    //         val width = mCameraRequest!!.previewWidth
-    //         val height = mCameraRequest!!.previewHeight
-    //         val ret = MediaUtils.saveYuv2Jpeg(path, data, width, height)
-    //         if (!ret) {
-    //             val file = File(path)
-    //             if (file.exists()) {
-    //                 file.delete()
-    //             }
-    //             mMainHandler.post { callback.onError("save yuv to jpeg failed.") }
-    //             Logger.w(TAG, "save yuv to jpeg failed.")
-    //             return@submit
-    //         }
-    //         // val values = ContentValues()
-    //         // values.put(MediaStore.Images.ImageColumns.TITLE, title)
-    //         // values.put(MediaStore.Images.ImageColumns.DISPLAY_NAME, displayName)
-    //         // values.put(MediaStore.Images.ImageColumns.DATA, path)
-    //         // values.put(MediaStore.Images.ImageColumns.DATE_TAKEN, date)
-    //         // ctx.contentResolver?.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-    //         mMainHandler.post { callback.onComplete(path) }
-    //         if (Utils.debugCamera) {
-    //             Logger.i(TAG, "captureImageInternal save path = $path")
-    //         }
-    //     }
-    // }
 
     override fun captureImageInternal(savePath: String?, callback: ICaptureCallBack) {
         Logger.d(TAG, "🔥🔥🔥 KODE CUSTOM CAPTURE BERHASIL DIPANGGIL! 🔥🔥🔥")
