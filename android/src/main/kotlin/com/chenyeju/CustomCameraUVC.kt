@@ -358,93 +358,10 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         isPreviewed = true
         postStateEvent(ICameraStateCallBack.State.OPENED)
 
-        forceResetHardware()
-
         if (Utils.debugCamera) {
             Logger.i(TAG, " start preview, name = ${device.deviceName}, preview=$previewSize")
         }
     }
-
-    // override fun closeCameraInternal() {
-
-    //     if (mIsFlashOn) {
-    //         Logger.d(TAG, "Flash is still ON. Forcing OFF before close...")
-    //         try {
-    //             val dataOff = byteArrayOf(0x00, 0x00)
-    //             mCtrlBlock?.connection?.controlTransfer(0x21, 0x01, 0x0100, 0x0200, dataOff, 2,
-    // 200)
-    //             mIsFlashOn = false // Reset penanda
-    //         } catch (e: Exception) {
-    //             Logger.e(TAG, "Failed to turn off flash before closing", e)
-    //         }
-    //     }
-
-    //     // try {
-    //     //     mFlashInterface?.let { intf ->
-    //     //         mCtrlBlock?.connection?.releaseInterface(intf)
-    //     //         mFlashInterface = null
-    //     //         Logger.d(TAG, "Flash interface released safely before closing.")
-    //     //     }
-    //     // } catch (e: Exception) {
-    //     //     Logger.e(TAG, "Error releasing flash interface", e)
-    //     // }
-    //     postStateEvent(ICameraStateCallBack.State.CLOSED)
-    //     isPreviewed = false
-    //     releaseEncodeProcessor()
-    //     mUvcCamera?.destroy()
-    //     mUvcCamera = null
-    //     if (Utils.debugCamera) {
-    //         Logger.i(TAG, " stop preview, name = ${device.deviceName}")
-    //     }
-    // }
-
-    // override fun closeCameraInternal() {
-    //     // 👇 ========================================================== 👇
-    //     // 👇 --- PERBAIKAN: GUNAKAN REFLECTION UNTUK MATIKAN SENTER --- 👇
-    //     // 👇 ========================================================== 👇
-    //     if (mIsFlashOn) {
-    //         Logger.d(TAG, "Flash is still ON. Forcing OFF before close...")
-    //         try {
-    //             val uvc = mUvcCamera
-    //             if (uvc != null) {
-    //                 // 1. Ambil pointer C++ (mNativePtr)
-    //                 val ptrField = UVCCamera::class.java.getDeclaredField("mNativePtr")
-    //                 ptrField.isAccessible = true
-    //                 val nativePtr = ptrField.getLong(uvc)
-
-    //                 if (nativePtr != 0L) {
-    //                     // 2. Ambil fungsi native C++
-    //                     val method =
-    //                             UVCCamera::class.java.getDeclaredMethod(
-    //                                     "nativeSetBacklightComp",
-    //                                     Long::class.javaPrimitiveType,
-    //                                     Int::class.javaPrimitiveType
-    //                             )
-    //                     method.isAccessible = true
-
-    //                     // 3. Eksekusi OFF (nilai 0) secara sinkron menggunakan mesin C++
-    //                     val ret = method.invoke(null, nativePtr, 0) as Int
-    //                     mIsFlashOn = false
-    //                     Logger.d(TAG, "Native Flashlight turned OFF on close, Result: $ret")
-    //                 }
-    //             }
-    //         } catch (e: Exception) {
-    //             Logger.e(TAG, "Failed to turn off native flash before closing", e)
-    //         }
-    //     }
-    //     // 👆 ========================================================== 👆
-
-    //     // (Hapus/biarkan bagian mFlashInterface yang di-comment karena sudah tidak dipakai)
-
-    //     postStateEvent(ICameraStateCallBack.State.CLOSED)
-    //     isPreviewed = false
-    //     releaseEncodeProcessor()
-    //     mUvcCamera?.destroy() // Mesin C++ dihancurkan setelah senter mati
-    //     mUvcCamera = null
-    //     if (Utils.debugCamera) {
-    //         Logger.i(TAG, " stop preview, name = ${device.deviceName}")
-    //     }
-    // }
 
     override fun closeCameraInternal() {
         val uvc = mUvcCamera
@@ -814,74 +731,6 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 Logger.e(TAG, "Failed to set manual focus", e)
             }
         }
-    }
-
-    // --- TAMBAHKAN FUNGSI INI ---
-    // private fun forceResetHardware() {
-    //     mCameraHandler?.post {
-    //         try {
-    //             Logger.d(TAG, "Forcing hardware reset from Native...")
-
-    //             // 1. Matikan Flash (Panggil fungsi ninja reflection yang kita buat)
-    //             setFlashlight(false)
-
-    //             // 2. Reset Filter ke default (50 atau nilai tengah)
-    //             mUvcCamera?.brightness = 50
-    //             mUvcCamera?.contrast = 50
-    //             mUvcCamera?.saturation = 50
-
-    //             Logger.d(TAG, "Hardware reset complete.")
-    //         } catch (e: Exception) {
-    //             Logger.e(TAG, "Failed to reset hardware on startup", e)
-    //         }
-    //     }
-    // }
-
-    // private fun forceResetHardware() {
-    //     // Beri delay 500ms agar jalur video terbuka mulus dulu di awal tanpa interupsi
-    //     mCameraHandler?.postDelayed({
-    //         try {
-    //             Logger.d(TAG, "Forcing hardware reset from Native (Delayed)...")
-
-    //             // Matikan Flash
-    //             setFlashlight(false)
-
-    //             // Reset Filter ke default (50)
-    //             mUvcCamera?.brightness = 50
-    //             mUvcCamera?.contrast = 50
-    //             mUvcCamera?.saturation = 50
-
-    //             Logger.d(TAG, "Hardware reset complete.")
-    //         } catch (e: Exception) {
-    //             Logger.e(TAG, "Failed to reset hardware on startup", e)
-    //         }
-    //     }, 1000) // 👈 DELAY 500 MILIDETIK
-    // }
-
-    private fun forceResetHardware() {
-        // 1. MATIKAN FLASH INSTAN (Tanpa Delay) agar tidak berkedip/menyala di awal
-        try {
-            setFlashlight(false)
-        } catch (e: Exception) {
-            Logger.e(TAG, "Failed to force kill flash on startup", e)
-        }
-
-        // 2. Beri delay 2 detik HANYA untuk reset filter (Brightness, Contrast, Saturation)
-        // agar tidak mengganggu aliran video pertama kali terbuka
-        mCameraHandler?.postDelayed(
-                {
-                    try {
-                        Logger.d(TAG, "Forcing filter reset from Native (Delayed)...")
-                        mUvcCamera?.brightness = 50
-                        mUvcCamera?.contrast = 50
-                        mUvcCamera?.saturation = 50
-                        Logger.d(TAG, "Filter reset complete.")
-                    } catch (e: Exception) {
-                        Logger.e(TAG, "Failed to reset filters on startup", e)
-                    }
-                },
-                500
-        ) // Delay 2000 milidetik
     }
 
     /** Get hue */
