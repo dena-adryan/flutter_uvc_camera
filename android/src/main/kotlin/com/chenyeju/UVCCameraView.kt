@@ -12,7 +12,7 @@ import android.hardware.usb.UsbDevice
 import android.media.MediaScannerConnection
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import android.util.Log // Import untuk log waktu
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.SurfaceView
@@ -63,16 +63,6 @@ internal class UVCCameraView(
         private const val TAG = "CameraView"
     }
 
-    //    init{
-    //        processingParams()
-    //    }
-    //
-    //    private fun processingParams() {
-    //        if (params is Map<*, *>) {
-    //
-    //        }
-    //    }
-
     override fun getView(): View {
         return mViewBinding.root
     }
@@ -82,6 +72,9 @@ internal class UVCCameraView(
     }
 
     fun initCamera() {
+        val startInit = System.currentTimeMillis()
+        android.util.Log.d("SONIX_PERF", "[UVCCameraView] initCamera: Mulai menyiapkan TextureView")
+
         checkCameraPermission()
         val cameraView = AspectRatioTextureView(mContext)
         handleTextureView(cameraView)
@@ -92,9 +85,13 @@ internal class UVCCameraView(
                 addView(view, getViewLayoutParams(this))
             }
         }
+
+        val duration = System.currentTimeMillis() - startInit
+        android.util.Log.d("SONIX_PERF", "[UVCCameraView] initCamera: Selesai dalam $duration ms")
     }
 
     fun openUVCCamera() {
+        android.util.Log.d("SONIX_PERF", "[UVCCameraView] openUVCCamera: Dipicu dari Flutter")
         checkCameraPermission()
         openCamera()
     }
@@ -140,12 +137,6 @@ internal class UVCCameraView(
                                 device ?: return
 
                                 // 👇 --- PENJAGA GERBANG USB (GUARD CLAUSE) --- 👇
-                                // Hanya proses jika perangkat USB yang tercolok adalah kamera Sonix
-                                // (VID: 3141).
-                                // Perangkat Iris Aratek, Sidik Jari, dan lainnya akan langsung
-                                // diabaikan di sini
-                                // sehingga tidak akan menyumbat lalu lintas bus USB saat aplikasi
-                                // dibuka.
                                 if (device.vendorId != 3141) {
                                     return
                                 }
@@ -177,35 +168,6 @@ internal class UVCCameraView(
                                 }
                             }
 
-                            // override fun onAttachDev(device: UsbDevice?) {
-                            //     device ?: return
-                            //     view.context.let {
-                            //         if (mCameraMap.containsKey(device.deviceId)) {
-                            //             return
-                            //         }
-                            //         generateCamera(it, device).apply {
-                            //             mCameraMap[device.deviceId] = this
-                            //         }
-                            //         if (mRequestPermission.get()) {
-                            //             return@let
-                            //         }
-                            //         getDefaultCamera()?.apply {
-                            //             if (vendorId == device.vendorId &&
-                            //                             productId == device.productId
-                            //             ) {
-                            //                 Logger.i(
-                            //                         TAG,
-                            //                         "default camera pid: $productId, vid:
-                            // $vendorId"
-                            //                 )
-                            //                 requestPermission(device)
-                            //             }
-                            //             return@let
-                            //         }
-                            //         requestPermission(device)
-                            //     }
-                            // }
-
                             override fun onDetachDec(device: UsbDevice?) {
                                 mCameraMap.remove(device?.deviceId)?.apply {
                                     setUsbControlBlock(null)
@@ -226,9 +188,13 @@ internal class UVCCameraView(
                                 device ?: return
                                 ctrlBlock ?: return
                                 view.context ?: return
+                                
+                                android.util.Log.d("SONIX_PERF", "[UVCCameraView] onConnectDev: USB Handshake Sukses. Menyiapkan instansiasi...")
+                                
                                 mCameraMap[device.deviceId]
                                         ?.apply { setUsbControlBlock(ctrlBlock) }
                                         ?.also { camera ->
+                                            val startSetup = System.currentTimeMillis()
                                             try {
                                                 mCurrentCamera?.cancel(true)
                                                 mCurrentCamera = null
@@ -237,11 +203,16 @@ internal class UVCCameraView(
                                             }
                                             mCurrentCamera = SettableFuture()
                                             mCurrentCamera?.set(camera)
+                                            
+                                            android.util.Log.d("SONIX_PERF", "[UVCCameraView] onConnectDev: Memanggil openCamera(mCameraView)")
                                             openCamera(mCameraView)
+                                            
                                             Logger.i(
                                                     TAG,
                                                     "camera connection. pid: ${device.productId}, vid: ${device.vendorId}"
                                             )
+                                            val duration = System.currentTimeMillis() - startSetup
+                                            android.util.Log.d("SONIX_PERF", "[UVCCameraView] onConnectDev setup took $duration ms")
                                         }
                             }
 
@@ -314,7 +285,6 @@ internal class UVCCameraView(
             permissions: Array<out String>,
             grantResults: IntArray
     ) {
-        // 处理权限结果
         if (requestCode == 1230) {
             val index = permissions.indexOf(Manifest.permission.CAMERA)
             if (index >= 0 && grantResults[index] == PackageManager.PERMISSION_GRANTED) {
@@ -409,40 +379,40 @@ internal class UVCCameraView(
         return null
     }
 
+    // --- INSTRUMEN LOG: MENGUKUR DURASI BLOKING FUTURE.GET ---
     private fun getCurrentCamera(): MultiCameraClient.ICamera? {
+        val startGet = System.currentTimeMillis()
+        android.util.Log.d("SONIX_PERF", "[UVCCameraView] getCurrentCamera: Memanggil mCurrentCamera?.get() (Future bloking)...")
         return try {
-            mCurrentCamera?.get(2, TimeUnit.SECONDS)
+            val camera = mCurrentCamera?.get(2, TimeUnit.SECONDS)
+            val duration = System.currentTimeMillis() - startGet
+            android.util.Log.d("SONIX_PERF", "[UVCCameraView] getCurrentCamera: get() berhasil diselesaikan dalam $duration ms")
+            camera
         } catch (e: Exception) {
+            val duration = System.currentTimeMillis() - startGet
+            android.util.Log.e("SONIX_PERF", "[UVCCameraView] getCurrentCamera: get() GAGAL/TIMEOUT dalam $duration ms", e)
             e.printStackTrace()
             null
         }
     }
+
     fun requestPermission(device: UsbDevice?) {
         mRequestPermission.set(true)
         mCameraClient?.requestPermission(device)
     }
 
-    // fun generateCamera(ctx: Context, device: UsbDevice): MultiCameraClient.ICamera {
-    //     return CameraUVC(ctx, device,params)
-    // }
-
     fun generateCamera(ctx: Context, device: UsbDevice): MultiCameraClient.ICamera {
         val camera = CameraUVC(ctx, device, params)
 
-        // --- TAMBAHKAN LISTENER INI ---
         camera.faceListener =
                 object : CameraUVC.OnFaceDetectedListener {
                     override fun onFaceDetected(facesJson: String) {
-                        // Gunakan Main Thread agar aman mengirim data ke Flutter
-
                         Log.d("MLKIT_DEBUG", "Sending to Flutter: $facesJson")
-
                         Handler(Looper.getMainLooper()).post {
                             mChannel.invokeMethod("onFaceDetected", facesJson)
                         }
                     }
                 }
-        // ------------------------------
 
         return camera
     }
@@ -467,15 +437,14 @@ internal class UVCCameraView(
 
     fun switchCamera(usbDevice: UsbDevice) {
         getCurrentCamera()?.closeCamera()
-        try {
-            Thread.sleep(500)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        mCurrentCamera = null
         requestPermission(usbDevice)
     }
 
     fun openCamera(st: IAspectRatio? = null) {
+        val startOpen = System.currentTimeMillis()
+        android.util.Log.d("SONIX_PERF", "[UVCCameraView] openCamera: Memulai penyiapan preview tingkat Native...")
+
         when (st) {
             is TextureView, is SurfaceView -> {
                 st
@@ -484,9 +453,17 @@ internal class UVCCameraView(
                 null
             }
         }.apply {
-            getCurrentCamera()?.openCamera(this, getCameraRequest())
-            getCurrentCamera()?.setCameraStateCallBack(this@UVCCameraView)
+            val startGetCam = System.currentTimeMillis()
+            val camera = getCurrentCamera()
+            val getCamDuration = System.currentTimeMillis() - startGetCam
+            android.util.Log.d("SONIX_PERF", "[UVCCameraView] openCamera: getCurrentCamera() selesai dalam $getCamDuration ms (null? ${camera == null})")
+            
+            camera?.openCamera(this, getCameraRequest())
+            camera?.setCameraStateCallBack(this@UVCCameraView)
         }
+
+        val duration = System.currentTimeMillis() - startOpen
+        android.util.Log.d("SONIX_PERF", "[UVCCameraView] openCamera: Selesai dilempar ke C++ dalam $duration ms")
     }
 
     fun closeCamera() {
@@ -547,8 +524,7 @@ internal class UVCCameraView(
         return CameraRequest.Builder()
                 .setPreviewWidth(640)
                 .setPreviewHeight(480)
-                .setRenderMode(CameraRequest.RenderMode.NORMAL)
-                // .setRenderMode(CameraRequest.RenderMode.OPENGL)
+                .setRenderMode(CameraRequest.RenderMode.NORMAL) // Render mode normal (cepat)
                 .setDefaultRotateType(RotateType.ANGLE_0)
                 .setAudioSource(CameraRequest.AudioSource.SOURCE_SYS_MIC)
                 .setAspectRatioShow(true)
@@ -621,35 +597,6 @@ internal class UVCCameraView(
 
     private fun isCameraOpened() = getCurrentCamera()?.isCameraOpened() ?: false
 
-    // fun takePicture(callback: UVCStringCallback) {
-    //     if (!isCameraOpened()) {
-    //         callFlutter("摄像头未打开")
-    //         setCameraERRORState("设备未打开")
-    //         return
-    //     }
-
-    //     // Jangan kirim parameter savePath apa pun, karena sering dianggap sebagai folder oleh
-    //     // library aslinya
-    //     captureImage(
-    //             object : ICaptureCallBack {
-    //                 override fun onBegin() {}
-
-    //                 override fun onComplete(path: String?) {
-    //                     if (path != null) {
-    //                         // CUKUP PANGGIL INI SAJA, JANGAN ADA MediaScannerConnection!
-    //                         callback.onSuccess(path)
-    //                     } else {
-    //                         callback.onError("拍照失败，未能保存图片")
-    //                     }
-    //                 }
-
-    //                 override fun onError(error: String?) {
-    //                     callback.onError(error ?: "未知错误")
-    //                 }
-    //             }
-    //     )
-    // }
-
     fun takePicture(callback: UVCStringCallback) {
         if (!isCameraOpened()) {
             callFlutter("摄像头未打开")
@@ -657,10 +604,8 @@ internal class UVCCameraView(
             return
         }
 
-        // KITA BYPASS KODE PABRIKNYA DI SINI
         val camera = getCurrentCamera()
         if (camera is CameraUVC) {
-            // Panggil fungsi custom rahasia kita
             camera.takePictureCustom(callback)
         } else {
             callback.onError("Camera is not CameraUVC")
