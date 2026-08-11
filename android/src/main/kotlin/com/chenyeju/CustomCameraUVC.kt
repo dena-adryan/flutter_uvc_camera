@@ -18,6 +18,7 @@ package com.chenyeju
 import android.content.Context
 import android.graphics.SurfaceTexture
 import android.hardware.usb.UsbDevice
+import android.util.Log // Import untuk log waktu
 import android.view.Surface
 import android.view.SurfaceView
 import android.view.TextureView
@@ -51,7 +52,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         MultiCameraClient.ICamera(ctx, device) {
     private var mUvcCamera: UVCCamera? = null
     private var mFlashInterface: android.hardware.usb.UsbInterface? = null
-    private var mIsFlashOn: Boolean = false
+    private var mIsFlashOn = false
     private val mCameraPreviewSize by lazy { arrayListOf<PreviewSize>() }
     companion object {
         private const val TAG = "CameraUVC"
@@ -59,6 +60,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
 
     // Variabel ML Kit
     private var isDetectingFace = false
+    private var isFaceDetectionEnabled = false
     private val faceDetector =
             FaceDetection.getClient(
                     FaceDetectorOptions.Builder()
@@ -71,36 +73,6 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         fun onFaceDetected(facesJson: String)
     }
     var faceListener: OnFaceDetectedListener? = null
-
-    // private val frameCallBack = IFrameCallback { frame ->
-    //     frame?.apply {
-    //         frame.position(0)
-    //         val data = ByteArray(capacity())
-    //         get(data)
-    //         mCameraRequest?.apply {
-    //             if (data.size != previewWidth * previewHeight * 3 / 2) {
-    //                 return@IFrameCallback
-    //             }
-    //             // for preview callback
-    //             mPreviewDataCbList.forEach { cb ->
-    //                 cb?.onPreviewData(
-    //                         data,
-    //                         previewWidth,
-    //                         previewHeight,
-    //                         IPreviewDataCallBack.DataFormat.NV21
-    //                 )
-    //             }
-    //             // for image
-    //             if (mNV21DataQueue.size >= MAX_NV21_DATA) {
-    //                 mNV21DataQueue.removeLast()
-    //             }
-    //             mNV21DataQueue.offerFirst(data)
-    //             // for video
-    //             // avoid preview size changed
-    //             putVideoData(data)
-    //         }
-    //     }
-    // }
 
     private val frameCallBack = IFrameCallback { frame ->
         frame?.apply {
@@ -136,7 +108,7 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 // 👇 ================================================== 👇
                 // 👇 --- KODE TAMBAHAN: GOOGLE ML KIT FACE DETECTION --- 👇
                 // 👇 ================================================== 👇
-                if (!isDetectingFace && faceListener != null) {
+                if (isFaceDetectionEnabled && !isDetectingFace && faceListener != null) {
                     isDetectingFace = true // Kunci agar frame berikutnya tidak menumpuk
                     try {
                         // 1. Ubah byte array NV21 dari USB menjadi format InputImage ML Kit
@@ -223,6 +195,12 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
     }
 
     override fun <T> openCameraInternal(cameraView: T) {
+        val totalStart = System.currentTimeMillis()
+        android.util.Log.d(
+                "SONIX_PERF",
+                "[CameraUVC] openCameraInternal: Proses inisialisasi dimulai..."
+        )
+
         if (Utils.isTargetSdkOverP(ctx) && !CameraUtils.hasCameraPermission(ctx)) {
             closeCamera()
             postStateEvent(ICameraStateCallBack.State.ERROR, "Has no CAMERA permission.")
@@ -239,6 +217,9 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         }
         // 1. create a UVCCamera
         val request = mCameraRequest!!
+
+        // --- INSTRUMEN LOG: PROSES JNI OPEN ---
+        val openStart = System.currentTimeMillis()
         try {
             mUvcCamera = UVCCamera().apply { open(mCtrlBlock) }
         } catch (e: Exception) {
@@ -249,6 +230,11 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
             )
             Logger.e(TAG, "open camera failed.", e)
         }
+        val openDuration = System.currentTimeMillis() - openStart
+        android.util.Log.d(
+                "SONIX_PERF",
+                "[CameraUVC] 1. mUvcCamera.open (USB Handshake) took $openDuration ms"
+        )
 
         var minFps = 10
         var maxFps = 60
@@ -269,6 +255,8 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                     mCameraRequest!!.previewHeight = height
                 }
 
+        // --- INSTRUMEN LOG: PROSES NEGOSIASI FORMAT ---
+        val prepStart = System.currentTimeMillis()
         try {
             Logger.i(TAG, "getSuitableSize: $previewSize")
             if (!isPreviewSizeSupported(previewSize)) {
@@ -281,8 +269,6 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 return
             }
             initEncodeProcessor(previewSize.width, previewSize.height)
-            // if give custom minFps or maxFps or unsupported preview size
-            // this method will fail
             mUvcCamera?.setPreviewSize(
                     previewSize.width,
                     previewSize.height,
@@ -323,6 +309,12 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
                 return
             }
         }
+        val prepDuration = System.currentTimeMillis() - prepStart
+        android.util.Log.d(
+                "SONIX_PERF",
+                "[CameraUVC] 2. Preview setup/negotiation took $prepDuration ms"
+        )
+
         // if not opengl render or opengl render with preview callback
         // there should opened
         if (!isNeedGLESRender ||
@@ -331,7 +323,9 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         ) {
             mUvcCamera?.setFrameCallback(frameCallBack, UVCCamera.PIXEL_FORMAT_YUV420SP)
         }
-        // 3. start preview
+
+        // --- INSTRUMEN LOG: PROSES MENYALAKAN ALIRAN VIDEO (C++ START STREAM) ---
+        val previewStart = System.currentTimeMillis()
         when (cameraView) {
             is Surface -> {
                 mUvcCamera?.setPreviewDisplay(cameraView)
@@ -354,9 +348,30 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
         mUvcCamera?.autoFocus = true
         mUvcCamera?.autoWhiteBlance = true
         mUvcCamera?.startPreview()
+
+        val previewDuration = System.currentTimeMillis() - previewStart
+        android.util.Log.d(
+                "SONIX_PERF",
+                "[CameraUVC] 3. mUvcCamera.startPreview (C++ JNI) took $previewDuration ms"
+        )
+
+        // --- INSTRUMEN LOG: QUERY PARAMETER ---
+        val paramsStart = System.currentTimeMillis()
         mUvcCamera?.updateCameraParams()
+        val paramsDuration = System.currentTimeMillis() - paramsStart
+        android.util.Log.d(
+                "SONIX_PERF",
+                "[CameraUVC] 4. mUvcCamera.updateCameraParams took $paramsDuration ms"
+        )
+
         isPreviewed = true
         postStateEvent(ICameraStateCallBack.State.OPENED)
+
+        val totalDuration = System.currentTimeMillis() - totalStart
+        android.util.Log.d(
+                "SONIX_PERF",
+                "[CameraUVC] TOTAL openCameraInternal took $totalDuration ms"
+        )
 
         if (Utils.debugCamera) {
             Logger.i(TAG, " start preview, name = ${device.deviceName}, preview=$previewSize")
@@ -666,7 +681,6 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
 
     /** Get saturation */
     fun getSaturation() = mUvcCamera?.saturation
-
     /** Reset saturation */
     fun resetSaturation() {
         mUvcCamera?.resetSaturation()
@@ -718,7 +732,6 @@ class CameraUVC(ctx: Context, device: UsbDevice, private val params: Any?) :
             }
         }
     }
-
     // --- KONTROL MANUAL FOKUS (Nilai 0 - 100) ---
     fun setManualFocus(value: Int) {
         mCameraHandler?.post {
